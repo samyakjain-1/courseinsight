@@ -224,7 +224,7 @@ export default function HomePage() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.4, delay: 0.05 * index }}
                     >
-                      <Link href={`/course?id=${course.id}`}>
+                      <Link href={`/course/${course.id}`}>
                         <div className="bg-white rounded-xl p-6 border border-surface-200 hover:border-primary-300 hover:shadow-md transition-all duration-200 cursor-pointer">
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
