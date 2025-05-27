@@ -95,8 +95,8 @@ export default function InteractiveBackground() {
             delay: orb.delay
           }}
           initial={{
-            x: Math.random() * window.innerWidth - orb.size / 2,
-            y: Math.random() * window.innerHeight - orb.size / 2,
+            x: typeof window !== 'undefined' ? Math.random() * window.innerWidth - orb.size / 2 : 0,
+            y: typeof window !== 'undefined' ? Math.random() * window.innerHeight - orb.size / 2 : 0,
           }}
         />
       ))}

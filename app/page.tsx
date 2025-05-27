@@ -6,10 +6,6 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import InteractiveBackground from './components/InteractiveBackground'
 
-// Import course data
-import coursesWithBlob from '../courses_with_blob.json'
-import coursesDetailed from '../json/madgrades_courses_detailed.json'
-
 // Type definitions
 interface Course {
   id: string
@@ -19,26 +15,40 @@ interface Course {
   aliases: string[]
 }
 
-// Transform the data into a usable format
-const allCourses: Course[] = (coursesWithBlob as any[])
-  .filter((course: any) => course.code && course.title) // Filter out courses without basic info
-  .map((course: any) => ({
-    id: course.code,
-    title: course.title,
-    subjects: course.subject || [],
-    searchBlob: course.search_blob || null,
-    aliases: course.aliases || []
-  }))
-
-// Extract unique departments
-const departments = Array.from(new Set(allCourses.flatMap((course: Course) => course.subjects))).sort()
-
 export default function HomePage() {
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([])
   const [hasSearched, setHasSearched] = useState(false)
+  const [allCourses, setAllCourses] = useState<Course[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const loadCourseData = async () => {
+      try {
+        const response = await fetch('/courses_with_blob.json')
+        const coursesData = await response.json()
+        
+        // Transform the data into a usable format
+        const transformedCourses: Course[] = (coursesData as any[])
+          .filter((course: any) => course.code && course.title) // Filter out courses without basic info
+          .map((course: any) => ({
+            id: course.code,
+            title: course.title,
+            subjects: course.subject || [],
+            searchBlob: course.search_blob || null,
+            aliases: course.aliases || []
+          }))
+        
+        setAllCourses(transformedCourses)
+      } catch (error) {
+        console.error('Error loading course data:', error)
+      }
+    }
+
+    loadCourseData()
+  }, [])
 
   const handleSearch = () => {
     performSearch()

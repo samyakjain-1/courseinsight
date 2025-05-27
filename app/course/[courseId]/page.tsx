@@ -1,68 +1,23 @@
 'use client'
 
-import { useState } from 'react'
-import { ArrowLeft, BookOpen, Users, Clock, TrendingUp, MessageCircle, ExternalLink, ChevronDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ArrowLeft, BookOpen, Users, Clock, TrendingUp, MessageCircle, ExternalLink, ChevronDown, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 
-// Mock data - you'll replace this with actual data later
-const mockCourseData = {
-  'CS540': {
-    id: 'CS540',
-    title: 'Introduction to Artificial Intelligence',
-    subjects: ['Computer Sciences'],
-    description: 'An introduction to the theory and practice of artificial intelligence. Topics include search, knowledge representation, inference, planning, and machine learning.',
-    credits: 3,
-    prerequisites: ['CS300', 'MATH240'],
-    summary: {
-      overall: 'Students generally find CS540 challenging but rewarding. The course covers fundamental AI concepts with hands-on programming assignments. Professor enthusiasm varies, but the material is consistently engaging.',
-      difficulty: 'Hard',
-      workload: 'Heavy',
-      sentiment: 'Positive',
-      keyTopics: ['Search algorithms', 'Machine learning', 'Logic and inference', 'Planning'],
-      commonComplaints: ['Heavy workload', 'Difficult exams', 'Time-consuming assignments'],
-      commonPraises: ['Interesting material', 'Practical applications', 'Good preparation for advanced courses']
-    },
-    stats: {
-      totalPosts: 156,
-      averageRating: 4.2,
-      enrollmentTrend: 'Increasing'
-    }
-  }
+// Course interface matching our data structure
+interface Course {
+  code: string
+  title: string
+  subject: string[]
+  search_blob?: string
+  aliases?: string[]
 }
 
-const mockRedditPosts = [
-  {
-    id: 1,
-    title: 'CS540 with Professor Johnson - Worth Taking?',
-    excerpt: 'Thinking about taking CS540 next semester. How difficult is it really? I heard the assignments are pretty time-consuming...',
-    author: 'u/badger_student',
-    upvotes: 23,
-    comments: 15,
-    date: '2 days ago',
-    sentiment: 'neutral'
-  },
-  {
-    id: 2,
-    title: 'Just finished CS540 - AMA',
-    excerpt: 'Finally done with AI! Happy to answer any questions about the course, assignments, or what to expect...',
-    author: 'u/cs_grad_2024',
-    upvotes: 67,
-    comments: 34,
-    date: '1 week ago',
-    sentiment: 'positive'
-  },
-  {
-    id: 3,
-    title: 'CS540 Assignment 3 is killing me',
-    excerpt: 'Anyone else struggling with the neural network assignment? The documentation is confusing and office hours are always packed...',
-    author: 'u/stressed_junior',
-    upvotes: 41,
-    comments: 22,
-    date: '2 weeks ago',
-    sentiment: 'negative'
-  }
-]
+interface CourseSummary {
+  summary: string
+  source_urls: string[]
+}
 
 interface CoursePageProps {
   params: {
@@ -72,9 +27,101 @@ interface CoursePageProps {
 
 export default function CoursePage({ params }: CoursePageProps) {
   const [activeTab, setActiveTab] = useState('overview')
-  const [showAllPosts, setShowAllPosts] = useState(false)
+  const [showAllUrls, setShowAllUrls] = useState(false)
+  const [courseData, setCourseData] = useState<Course | null>(null)
+  const [courseSummary, setCourseSummary] = useState<CourseSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refinedSummary, setRefinedSummary] = useState<string | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
   
-  const courseData = mockCourseData[params.courseId as keyof typeof mockCourseData]
+  useEffect(() => {
+    const loadCourseData = async () => {
+      try {
+        // Load course data
+        const coursesResponse = await fetch('/courses_with_blob.json')
+        const coursesData = await coursesResponse.json()
+        
+        // Find the course by code
+        const course = coursesData.find((c: Course) => c.code === params.courseId)
+        
+        if (course) {
+          setCourseData(course)
+          
+          // Load course summaries
+          try {
+            const summariesResponse = await fetch('/summarize/course_summaries_1.json')
+            const summariesData = await summariesResponse.json()
+            
+            // Check if we have a summary for this course
+            if (summariesData[params.courseId]) {
+              setCourseSummary(summariesData[params.courseId])
+            }
+          } catch (error) {
+            console.log('Course summaries not available:', error)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading course data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadCourseData()
+  }, [params.courseId])
+
+  const handleStartAnalysis = async () => {
+    if (!courseSummary) return
+    
+    console.log('Starting analysis with:', {
+      summary: courseSummary.summary,
+      courseCode: courseData?.code,
+      courseTitle: courseData?.title,
+      summaryLength: courseSummary.summary?.length
+    })
+    
+    setAnalyzing(true)
+    setAnalysisError(null)
+    
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          summary: courseSummary.summary,
+          courseCode: courseData?.code,
+          courseTitle: courseData?.title
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setRefinedSummary(data.refinedSummary)
+      } else {
+        setAnalysisError(data.error || 'Analysis failed')
+      }
+    } catch (error) {
+      console.error('Error starting analysis:', error)
+      setAnalysisError('Failed to start analysis. Please try again.')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-surface-600">Loading course information...</p>
+        </div>
+      </div>
+    )
+  }
   
   if (!courseData) {
     return (
@@ -90,7 +137,7 @@ export default function CoursePage({ params }: CoursePageProps) {
     )
   }
 
-  const displayedPosts = showAllPosts ? mockRedditPosts : mockRedditPosts.slice(0, 3)
+  const displayedUrls = showAllUrls ? courseSummary?.source_urls || [] : (courseSummary?.source_urls || []).slice(0, 5)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -130,23 +177,29 @@ export default function CoursePage({ params }: CoursePageProps) {
             <div className="flex flex-col md:flex-row justify-between items-start mb-6">
               <div className="flex-1">
                 <h1 className="text-3xl font-bold text-surface-900 mb-2">
-                  {courseData.id}: {courseData.title}
+                  {courseData.code}: {courseData.title}
                 </h1>
-                <p className="text-surface-600 mb-4">{courseData.description}</p>
-                <div className="flex flex-wrap gap-4 text-sm text-surface-600">
-                  <span>Credits: {courseData.credits}</span>
-                  <span>Department: {courseData.subjects[0]}</span>
-                  {courseData.prerequisites.length > 0 && (
-                    <span>Prerequisites: {courseData.prerequisites.join(', ')}</span>
-                  )}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {courseData.subject.map((subject: string, index: number) => (
+                    <span key={index} className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm">
+                      {subject}
+                    </span>
+                  ))}
                 </div>
+                {courseData.aliases && courseData.aliases.length > 0 && (
+                  <div className="text-sm text-surface-600 mb-4">
+                    <span className="font-medium">Also known as:</span> {courseData.aliases.join(', ')}
+                  </div>
+                )}
               </div>
               <div className="mt-4 md:mt-0 md:ml-8">
                 <div className="bg-primary-50 rounded-xl p-4 text-center">
                   <div className="text-2xl font-bold text-primary-700 mb-1">
-                    {courseData.stats.averageRating}
+                    {courseSummary ? '📊' : '❓'}
                   </div>
-                  <div className="text-sm text-primary-600">Average Rating</div>
+                  <div className="text-sm text-primary-600">
+                    {courseSummary ? 'Analysis Available' : 'No Analysis Yet'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -155,23 +208,29 @@ export default function CoursePage({ params }: CoursePageProps) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-surface-50 rounded-xl">
                 <MessageCircle className="h-6 w-6 text-primary-600 mx-auto mb-2" />
-                <div className="text-lg font-semibold text-surface-900">{courseData.stats.totalPosts}</div>
+                <div className="text-lg font-semibold text-surface-900">
+                  {courseSummary ? courseSummary.source_urls.length : 0}
+                </div>
                 <div className="text-xs text-surface-600">Reddit Posts</div>
               </div>
               <div className="text-center p-3 bg-surface-50 rounded-xl">
                 <TrendingUp className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                <div className="text-lg font-semibold text-surface-900">{courseData.stats.enrollmentTrend}</div>
-                <div className="text-xs text-surface-600">Popularity</div>
+                <div className="text-lg font-semibold text-surface-900">
+                  {courseSummary ? 'Analyzed' : 'Pending'}
+                </div>
+                <div className="text-xs text-surface-600">Data Status</div>
               </div>
               <div className="text-center p-3 bg-surface-50 rounded-xl">
                 <Clock className="h-6 w-6 text-accent-600 mx-auto mb-2" />
-                <div className="text-lg font-semibold text-surface-900">{courseData.summary.workload}</div>
-                <div className="text-xs text-surface-600">Workload</div>
+                <div className="text-lg font-semibold text-surface-900">
+                  {courseSummary ? 'AI-Generated' : 'N/A'}
+                </div>
+                <div className="text-xs text-surface-600">Summary Type</div>
               </div>
               <div className="text-center p-3 bg-surface-50 rounded-xl">
                 <Users className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-                <div className="text-lg font-semibold text-surface-900">{courseData.summary.difficulty}</div>
-                <div className="text-xs text-surface-600">Difficulty</div>
+                <div className="text-lg font-semibold text-surface-900">Community</div>
+                <div className="text-xs text-surface-600">Source</div>
               </div>
             </div>
           </motion.div>
@@ -186,8 +245,8 @@ export default function CoursePage({ params }: CoursePageProps) {
             <div className="flex border-b border-surface-200">
               {[
                 { id: 'overview', label: 'AI Summary' },
-                { id: 'posts', label: 'Reddit Posts' },
-                { id: 'insights', label: 'Key Insights' }
+                { id: 'sources', label: 'Reddit Sources' },
+                { id: 'insights', label: 'Course Info' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -211,48 +270,101 @@ export default function CoursePage({ params }: CoursePageProps) {
                   transition={{ duration: 0.4 }}
                   className="space-y-6"
                 >
-                  <div>
-                    <h3 className="text-xl font-semibold text-surface-900 mb-4">
-                      What Students Are Saying
-                    </h3>
-                    <p className="text-surface-700 leading-relaxed mb-6">
-                      {courseData.summary.overall}
-                    </p>
-                  </div>
+                  {courseSummary ? (
+                    <>
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-xl font-semibold text-surface-900">
+                            Student Experience Analysis
+                          </h3>
+                          {!refinedSummary && (
+                            <button
+                              onClick={handleStartAnalysis}
+                              disabled={analyzing}
+                              className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {analyzing ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                  <span>Analyzing...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <TrendingUp className="h-4 w-4" />
+                                  <span>Start AI Analysis</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
 
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="bg-green-50 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-green-800 mb-3">
-                        What Students Love
-                      </h4>
-                      <ul className="space-y-2">
-                        {courseData.summary.commonPraises.map((praise, index) => (
-                          <li key={index} className="flex items-start space-x-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                            <span className="text-green-700">{praise}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                        {analysisError && (
+                          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+                            <div className="flex">
+                              <AlertCircle className="h-5 w-5 text-red-400 mr-3 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-red-800 font-medium">Analysis Error</p>
+                                <p className="text-red-700 text-sm">{analysisError}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
-                    <div className="bg-amber-50 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-amber-800 mb-3">
-                        Common Challenges
-                      </h4>
-                      <ul className="space-y-2">
-                        {courseData.summary.commonComplaints.map((complaint, index) => (
-                          <li key={index} className="flex items-start space-x-2">
-                            <div className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0"></div>
-                            <span className="text-amber-700">{complaint}</span>
-                          </li>
-                        ))}
-                      </ul>
+                        {refinedSummary ? (
+                          <div className="bg-green-50 border-l-4 border-green-400 p-6 mb-6">
+                            <div className="flex items-start">
+                              <TrendingUp className="h-5 w-5 text-green-400 mt-0.5 mr-3 flex-shrink-0" />
+                              <div>
+                                <p className="text-green-800 font-medium mb-2">
+                                  Enhanced Student Insights
+                                </p>
+                                <p className="text-green-700 text-sm">
+                                  AI-refined analysis based on {courseSummary.source_urls.length} student discussions
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-blue-50 border-l-4 border-blue-400 p-6 mb-6">
+                            <div className="flex items-start">
+                              <BookOpen className="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" />
+                              <div>
+                                <p className="text-blue-800 font-medium mb-2">
+                                  Raw Discussion Analysis
+                                </p>
+                                <p className="text-blue-700 text-sm">
+                                  Based on {courseSummary.source_urls.length} Reddit posts from r/UWMadison
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="prose max-w-none">
+                          <div className="text-surface-700 leading-relaxed whitespace-pre-line">
+                            {refinedSummary || courseSummary.summary}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-12">
+                      <AlertCircle className="h-16 w-16 text-surface-300 mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold text-surface-900 mb-2">
+                        No Analysis Available Yet
+                      </h3>
+                      <p className="text-surface-600 mb-4">
+                        We haven't analyzed Reddit discussions for {courseData.code} yet.
+                      </p>
+                      <p className="text-surface-500 text-sm">
+                        Check back later as we continue to process course discussions!
+                      </p>
                     </div>
-                  </div>
+                  )}
                 </motion.div>
               )}
 
-              {activeTab === 'posts' && (
+              {activeTab === 'sources' && (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -260,62 +372,61 @@ export default function CoursePage({ params }: CoursePageProps) {
                   className="space-y-4"
                 >
                   <h3 className="text-xl font-semibold text-surface-900 mb-6">
-                    Recent Reddit Discussions
+                    Reddit Discussion Sources
                   </h3>
                   
-                  {displayedPosts.map((post, index) => (
-                    <motion.div
-                      key={post.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.1 }}
-                      className="bg-surface-50 rounded-xl p-6 hover:bg-surface-100 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <h4 className="text-lg font-medium text-surface-900 flex-1">
-                          {post.title}
-                        </h4>
-                        <ExternalLink className="h-5 w-5 text-surface-400 ml-2 flex-shrink-0" />
-                      </div>
-                      
-                      <p className="text-surface-700 mb-4 line-clamp-2">
-                        {post.excerpt}
-                      </p>
-                      
-                      <div className="flex items-center justify-between text-sm text-surface-600">
-                        <div className="flex items-center space-x-4">
-                          <span>{post.author}</span>
-                          <span>{post.date}</span>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                          <span className="flex items-center space-x-1">
-                            <TrendingUp className="h-4 w-4" />
-                            <span>{post.upvotes}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <MessageCircle className="h-4 w-4" />
-                            <span>{post.comments}</span>
-                          </span>
-                          <span className={`px-2 py-1 rounded-md text-xs ${
-                            post.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
-                            post.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
-                            'bg-surface-200 text-surface-700'
-                          }`}>
-                            {post.sentiment}
-                          </span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                  {courseSummary && courseSummary.source_urls.length > 0 ? (
+                    <>
+                      {displayedUrls.map((url, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.4, delay: index * 0.1 }}
+                          className="bg-surface-50 rounded-xl p-6 hover:bg-surface-100 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="text-lg font-medium text-surface-900 mb-2">
+                                Reddit Discussion #{index + 1}
+                              </h4>
+                              <p className="text-surface-600 text-sm mb-3">
+                                r/UWMadison • Source for AI analysis
+                              </p>
+                              <a 
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-primary-600 hover:text-primary-700 transition-colors text-sm"
+                              >
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                View Original Post
+                              </a>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
 
-                  {!showAllPosts && mockRedditPosts.length > 3 && (
-                    <button
-                      onClick={() => setShowAllPosts(true)}
-                      className="w-full flex items-center justify-center space-x-2 py-4 text-primary-600 hover:text-primary-700 transition-colors"
-                    >
-                      <span>Show More Posts</span>
-                      <ChevronDown className="h-4 w-4" />
-                    </button>
+                      {!showAllUrls && courseSummary.source_urls.length > 5 && (
+                        <button
+                          onClick={() => setShowAllUrls(true)}
+                          className="w-full flex items-center justify-center space-x-2 py-4 text-primary-600 hover:text-primary-700 transition-colors"
+                        >
+                          <span>Show {courseSummary.source_urls.length - 5} More Sources</span>
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-12">
+                      <MessageCircle className="h-16 w-16 text-surface-300 mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold text-surface-900 mb-2">
+                        No Reddit Sources Available
+                      </h3>
+                      <p className="text-surface-600">
+                        We haven't found Reddit discussions for {courseData.code} yet.
+                      </p>
+                    </div>
                   )}
                 </motion.div>
               )}
@@ -328,36 +439,76 @@ export default function CoursePage({ params }: CoursePageProps) {
                   className="space-y-6"
                 >
                   <h3 className="text-xl font-semibold text-surface-900 mb-6">
-                    Key Course Topics
+                    Course Information
                   </h3>
                   
-                  <div className="grid md:grid-cols-2 gap-4 mb-8">
-                    {courseData.summary.keyTopics.map((topic, index) => (
-                      <div key={index} className="bg-primary-50 rounded-xl p-4">
-                        <span className="text-primary-700 font-medium">{topic}</span>
-                      </div>
-                    ))}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="bg-primary-50 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-primary-800 mb-3">
+                        Course Details
+                      </h4>
+                      <ul className="space-y-2">
+                        <li className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-primary-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-primary-700">
+                            <strong>Course Code:</strong> {courseData.code}
+                          </span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-primary-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-primary-700">
+                            <strong>Title:</strong> {courseData.title}
+                          </span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-primary-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-primary-700">
+                            <strong>Departments:</strong> {courseData.subject.join(', ')}
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-green-50 rounded-xl p-6">
+                      <h4 className="text-lg font-semibold text-green-800 mb-3">
+                        Data Insights
+                      </h4>
+                      <ul className="space-y-2">
+                        <li className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-green-700">
+                            Reddit Posts Analyzed: {courseSummary?.source_urls.length || 0}
+                          </span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-green-700">
+                            Analysis Status: {courseSummary ? 'Complete' : 'Pending'}
+                          </span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-green-700">
+                            Data Source: r/UWMadison Community
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
                   </div>
 
                   <div className="bg-surface-50 rounded-xl p-6">
                     <h4 className="text-lg font-semibold text-surface-900 mb-4">
-                      Overall Sentiment Analysis
+                      About This Analysis
                     </h4>
-                    <div className="flex items-center space-x-4 mb-4">
-                      <div className={`px-4 py-2 rounded-lg font-medium ${
-                        courseData.summary.sentiment === 'Positive' ? 'bg-green-100 text-green-800' :
-                        courseData.summary.sentiment === 'Negative' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {courseData.summary.sentiment}
-                      </div>
-                      <span className="text-surface-600">
-                        Based on {courseData.stats.totalPosts} Reddit posts
-                      </span>
-                    </div>
-                    <p className="text-surface-700">
-                      This analysis is generated from student discussions on r/UWMadison and provides 
-                      insights into the general student experience with this course.
+                    <p className="text-surface-700 mb-4">
+                      Our AI analysis is generated from authentic student discussions on the r/UWMadison subreddit. 
+                      This provides real insights into student experiences, challenges, and recommendations for this course.
+                    </p>
+                    <p className="text-surface-600 text-sm">
+                      {courseSummary 
+                        ? `Last updated: Based on ${courseSummary.source_urls.length} Reddit discussions`
+                        : 'This course analysis is not yet available. We are continuously processing new discussions.'
+                      }
                     </p>
                   </div>
                 </motion.div>
