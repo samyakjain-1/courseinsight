@@ -261,7 +261,7 @@ export default function DepartmentsPage() {
                       {department.popularCourses.map((course, courseIndex) => (
                         <Link
                           key={courseIndex}
-                          href={`/course/${course}`}
+                          href={`/course?id=${course}`}
                           className="block"
                         >
                           <div className="px-3 py-2 bg-surface-50 rounded-lg text-center hover:bg-surface-100 transition-colors cursor-pointer">

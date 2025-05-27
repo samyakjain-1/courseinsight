@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, BookOpen, Users, Clock, TrendingUp, MessageCircle, ExternalLink, ChevronDown, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -19,13 +20,10 @@ interface CourseSummary {
   source_urls: string[]
 }
 
-interface CoursePageProps {
-  params: {
-    courseId: string
-  }
-}
-
-export default function CoursePage({ params }: CoursePageProps) {
+export default function CoursePage() {
+  const searchParams = useSearchParams()
+  const courseId = searchParams.get('id')
+  
   const [activeTab, setActiveTab] = useState('overview')
   const [showAllUrls, setShowAllUrls] = useState(false)
   const [courseData, setCourseData] = useState<Course | null>(null)
@@ -36,6 +34,11 @@ export default function CoursePage({ params }: CoursePageProps) {
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   
   useEffect(() => {
+    if (!courseId) {
+      setLoading(false)
+      return
+    }
+
     const loadCourseData = async () => {
       try {
         // Load course data
@@ -43,7 +46,7 @@ export default function CoursePage({ params }: CoursePageProps) {
         const coursesData = await coursesResponse.json()
         
         // Find the course by code
-        const course = coursesData.find((c: Course) => c.code === params.courseId)
+        const course = coursesData.find((c: Course) => c.code === courseId)
         
         if (course) {
           setCourseData(course)
@@ -54,8 +57,8 @@ export default function CoursePage({ params }: CoursePageProps) {
             const summariesData = await summariesResponse.json()
             
             // Check if we have a summary for this course
-            if (summariesData[params.courseId]) {
-              setCourseSummary(summariesData[params.courseId])
+            if (summariesData[courseId]) {
+              setCourseSummary(summariesData[courseId])
             }
           } catch (error) {
             console.log('Course summaries not available:', error)
@@ -69,7 +72,7 @@ export default function CoursePage({ params }: CoursePageProps) {
     }
 
     loadCourseData()
-  }, [params.courseId])
+  }, [courseId])
 
   const handleStartAnalysis = async () => {
     if (!courseSummary) return
@@ -123,12 +126,26 @@ export default function CoursePage({ params }: CoursePageProps) {
     )
   }
   
+  if (!courseId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-surface-900 mb-2">No Course Selected</h1>
+          <p className="text-surface-600 mb-4">Please select a course to view its details.</p>
+          <Link href="/" className="btn-primary">
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   if (!courseData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-surface-900 mb-2">Course Not Found</h1>
-          <p className="text-surface-600 mb-4">The course {params.courseId} doesn't exist in our database.</p>
+          <p className="text-surface-600 mb-4">The course {courseId} doesn't exist in our database.</p>
           <Link href="/" className="btn-primary">
             Back to Home
           </Link>
