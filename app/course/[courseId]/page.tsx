@@ -64,9 +64,9 @@ export default function CoursePage({ params }: CoursePageProps) {
             for (const file of summaryFiles) {
               try {
                 const summariesResponse = await fetch(file)
-                const summariesData = await summariesResponse.json()
-                
-                if (summariesData[params.courseId]) {
+            const summariesData = await summariesResponse.json()
+            
+            if (summariesData[params.courseId]) {
                   foundSummary = summariesData[params.courseId]
                   console.log(`Found summary for ${params.courseId} in ${file}`)
                   break
