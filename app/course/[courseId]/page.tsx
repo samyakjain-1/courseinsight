@@ -48,14 +48,36 @@ export default function CoursePage({ params }: CoursePageProps) {
         if (course) {
           setCourseData(course)
           
-          // Load course summaries
+          // Load course summaries from multiple files
           try {
-            const summariesResponse = await fetch('/summarize/course_summaries_1.json')
-            const summariesData = await summariesResponse.json()
+            const summaryFiles = [
+              '/summarize/course_summaries_1.json',
+              '/summarize/course_summaries_2.json',
+              '/summarize/course_summaries_3.json',
+              '/summarize/course_summaries_4.json',
+              '/summarize/course_summaries_5.json'
+            ]
             
-            // Check if we have a summary for this course
-            if (summariesData[params.courseId]) {
-              setCourseSummary(summariesData[params.courseId])
+            let foundSummary = null
+            
+            // Try to find the course summary in any of the files
+            for (const file of summaryFiles) {
+              try {
+                const summariesResponse = await fetch(file)
+                const summariesData = await summariesResponse.json()
+                
+                if (summariesData[params.courseId]) {
+                  foundSummary = summariesData[params.courseId]
+                  console.log(`Found summary for ${params.courseId} in ${file}`)
+                  break
+                }
+              } catch (error) {
+                console.log(`Could not load ${file}:`, error)
+              }
+            }
+            
+            if (foundSummary) {
+              setCourseSummary(foundSummary)
             }
           } catch (error) {
             console.log('Course summaries not available:', error)

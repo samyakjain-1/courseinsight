@@ -5,11 +5,11 @@ from google.generativeai import configure, GenerativeModel
 from dotenv import load_dotenv
 
 # === CONFIG ===
-INPUT_FILE = "./../json/filtered/filtered_course_posts2.json"
-OUTPUT_FILE = "course_summaries_2.json"
+INPUT_FILE = "./../json/filtered/filtered_course_posts1.json"
+OUTPUT_FILE = "./../public/summarize/course_summaries_1.json"
 CHUNK_CHAR_LIMIT = 4000
 SLEEP_BETWEEN_REQUESTS = 1.5
-MODEL_NAME = "gemini-1.5-pro"
+MODEL_NAME = "gemini-2.0-flash"
 # ==============
 
 # Load Gemini API key
@@ -87,15 +87,15 @@ def main():
     output = existing.copy()
     all_courses = list(data.keys())
     
-    # Find the index of COMPSCI252 to start from
+    # Find the index of COMPSCI400 to start from
     start_index = 0
     for idx, course_code in enumerate(all_courses):
-        if course_code == "COMPSCI300":
+        if course_code == "COMPSCI400":
             start_index = idx
             break
     
     courses_to_process = all_courses[start_index:]
-    print(f"📚 Starting from COMPSCI300 with {len(courses_to_process)} courses to process...")
+    print(f"📚 Starting from COMPSCI400 with {len(courses_to_process)} courses to process...")
 
     for i, course_code in enumerate(courses_to_process):
         if course_code in output:
